@@ -1,0 +1,1020 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+    <meta name="msapplication-TileColor" content="black">
+    <meta name="theme-color" content="black">
+    <link rel="apple-touch-icon" sizes="180x180" href="images/favicon-180.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="images/favicon-32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="images/favicon-16.png">
+    <link rel="mask-icon" href="images/logo.svg">
+    <title>Cat Game</title>
+    <script>
+        const maxGamesStatistics = 10
+        const idleTimeThreshold = 30000 // idle time to reduce from statistics
+        const doubleClickTime = 400 // milliseconds
+        const doubleClickRadius = 100
+
+        const menuScale = 1.0
+        const menuButtonSize = 40.0 // size + margin
+        const menuOpacity1 = 0.5
+        const menuOpacity2 = 0.2 // fullscreen
+        const menuTimeout = 1000 // milliseconds
+        const fullscreenMessageTimeout = 4000
+
+        // target (beetle) movement
+        const targetSpeed1 = 0.0003 // minimum speed (scale per millisecond)
+        const targetSpeed2 = 0.0004 // maximum speed (scale per millisecond)
+        const targetSpeedBias = -1 // value1 < 0 < value2
+        const targetMoveDistance = 300 // bezier segment max size
+        const targetMoveMargin = 20 // screen margin
+        const targetHitRadius = 30
+        const targetScale1 = 1.6
+        const targetScale2 = 4.0
+        const targetScaleBias = -2 // value1 < 0 < value2
+
+        const blastDuration1 = 400 // minimum duration
+        const blastDuration2 = 1000 // maximum duration
+        const blastDurationBias = -1 // value1 < 0 < value2
+        const blastRadius = 100
+        const blastParticles = 40
+        const blastColors1 = ["255, 255, 100", "255, 100, 255", "100, 255, 255"] // palette, gradient start
+        const blastColors2 = ["255, 100, 0", "100, 0, 255", "0, 100, 255"] // palette, gradient end
+        const particleShape = new Path2D()
+        const particleSize1 = 5.0 // minimum
+        const particleSize2 = 15.0 // maximum
+        const particleSizeBias = -1.5 // value1 < 0 < value2
+        const blastSpeedEasing = 0.3 // fast < 1.0 < slow
+        const blastFadeEasing = 5.0 // fast < 1.0 < slow
+        const blastVibrationDuration = 400
+        const blastVibrationFrequency = 80 // higher frequency feels stronger
+        const blastCurveSpeed = 3 // blast velocity along target curve
+
+        const missVibrationDuration = 200
+        const missVibrationFrequency = 40 // lower frequency feels weaker
+
+        const sparkParticles = 5 // almost hit
+        const sparkRadius = 50
+        const sparkParticleSize1 = 3.0 // minimum size
+        const sparkParticleSize2 = 8.0 // maximum size
+        const sparkParticleSizeBias = -1 // value1 < 0 < value2
+
+        const highlightDuration = 800
+        const highlightFadeEasing = 0.5 // fast < 1.0 < slow
+        const highlightBlastColors = ["255, 255, 0", "255, 0, 255", "0, 255, 255"]
+        const highlightBlastAlpha = 0.4
+        const highlightBlastRadius = 200
+        const highlightTouchColor = "255, 255, 255"
+        const highlightTouchAlpha = 0.2
+        const highlightTouchRadius = 100
+
+        const targetColors1 = ["255, 255, 0", "255, 0, 255", "0, 255, 255"] // palette, gradient start
+        const targetColors2 = ["255, 100, 0", "100, 0, 255", "0, 100, 255"] // palette, gradient end
+        const targetHighlightColors = ["255, 255, 100", "255, 100, 255", "100, 255, 255"]
+        const targetWingsOpacity = 0.5
+        const targetHighlightSize = 50
+        const targetHighlightAlpha1 = 0.1 // glow pulse minimum
+        const targetHighlightAlpha2 = 0.3 // glow pulse maximum
+        const targetHighlightSpeed = 0.001 // glow pulse speed (pixel/millisecond)
+
+        const wingsSpeed = 0.002 // wings cycle speed (cycle/millisecond)
+        const wingsEasing = 0.5 // fast < 1.0 < slow
+        const antennaAngle1 = -0.2
+        const antennaAngle2 = 0.2
+        const antennaSpeed = 0.005 // antenna cycle (cycle/millisecond)
+        const antennaEasing = 1.5 // fast < 1.0 < slow
+
+        const trailColor1 = "100, 100, 100" // gradient start
+        const trailColor2 = "50, 50, 50" // gradient end
+        const trailDuration1 = 500 // minimum duration (millisecond)
+        const trailDuration2 = 5000 // maximum duration (millisecond)
+        const trailDurationBias = 0 // value1 < 0 < value2
+        const trailOffset1 = 10 // minimum start distance
+        const trailOffset2 = 20 // maximum start distance
+        const trailScatter1 = 10 // minimum end distance
+        const trailScatter2 = 40 // maximum end distance
+        const trailParticleSize1 = 3.0 // minimum size
+        const trailParticleSize2 = 8.0 // maximum size
+        const trailParticleSizeBias = -1 // value1 < 0 < value2
+        const trailProbability = 0.005 // probability (instance/millisecond)
+        const trailSpeedEasing = 1.2 // fast < 1.0 < slow
+        const trailFadeEasing = 5.0 // fast < 1.0 < slow
+        const roundStartDelay1 = 2000
+        const roundStartDelay2 = 3000
+        const roundStartDelayBias = -1 // value1 < 0 < value2
+
+        // debug
+        const showTargetPath = false
+        const showFps = false
+
+        // settings
+        let playerName = "Player1"
+        let targetSpeedFactor = 1
+        let gameScale = 1.0
+        let resolutionScale = 2
+        let screenTimeout = 600000 // postpone screen timeout (ms)
+        let enableVibration = true
+        let enableFullscreenMenu = true
+
+        // state
+        let canvas = null
+        let canvasLogicalWidth = 0
+        let canvasLogicalHeight = 0
+        let contextRootScale = 1 // root scale, applied before drawing to the canvas
+        let windowToLogicalScale = 1
+        let enableMenu = true
+        let wakeLock = null
+        let wakeLockAvailable = false
+        let wakeLockReleaseTime = 0
+        let menuContainer = null
+        let menuButtonContainer = null
+        let menuHideTime = 0
+        let isMenuVisible = false
+        let messageHideTime = 0
+        let messageContainer = null
+        let isFullscreen = false
+        let isFullscreenMessageVisible = true
+        let previousTime = 0.0
+        let roundStartTime = 0.0
+        let roundStarted = false
+        let roundTouches = 0
+        let roundIdleTime = 0
+        let totalRoundsCount = 0
+        let totalRoundsTouches = 0
+        let totalRoundsDuration = 0
+        let totalGamesCount = 0
+        let totalGamesRounds = 0
+        let totalGamesTouches = 0
+        let totalGamesDuration = 0
+        let lastTouch = 0
+        let targetCurve = []
+        let targetProgress = 0.0
+        let targetScale = 1
+        let targetSpeed = targetSpeed1 * targetSpeedFactor
+        let position = null
+        let color1 = 0
+        let color2 = 1
+        let eventTouches = []
+        const particles = []
+        const highlights = []
+
+        // debug
+        let debugMessage = null
+
+        function setCanvasSize() {
+            const devicePhysicalWidth = window.innerWidth * window.devicePixelRatio
+            const devicePhysicalHeight = window.innerHeight * window.devicePixelRatio
+            const canvasPhysicalWidth = devicePhysicalWidth / resolutionScale
+            const canvasPhysicalHeight = devicePhysicalHeight / resolutionScale
+
+            canvas.width = canvasPhysicalWidth
+            canvas.height = canvasPhysicalHeight
+
+            contextRootScale = gameScale * (Math.max(canvasPhysicalWidth, canvasPhysicalHeight) / 1000)
+
+            canvasLogicalWidth = canvasPhysicalWidth / contextRootScale
+            canvasLogicalHeight = canvasPhysicalHeight / contextRootScale
+
+
+            windowToLogicalScale = window.devicePixelRatio / (resolutionScale * contextRootScale)
+
+            const elementsScale = menuScale / (gameScale * windowToLogicalScale)
+            menuContainer.style.transform = "scale(" + elementsScale + ")"
+            menuButtonContainer.style.transform = "scale(" + elementsScale + ")"
+            messageContainer.parentElement.style.transform = "scale(" + elementsScale + ")"
+        }
+
+        function random(a, b, bias) {
+            let f = Math.random()
+
+            if (bias != 0) {
+                f = Math.pow(f, Math.exp(-bias))
+            }
+
+            return a + (b - a) * f
+        }
+
+        function mouseDown(e) {
+            const time = Date.now().valueOf()
+            processInput({ x: e.pageX * windowToLogicalScale, y: e.pageY * windowToLogicalScale, time: time })
+            e.preventDefault()
+        }
+
+        function touchStart(e) {
+            const time = Date.now().valueOf()
+            for (let i = 0; i < e.touches.length; i++) {
+                const touch = e.touches[i]
+                if (!eventTouches.includes(touch.identifier)) {
+                    eventTouches.push(touch.identifier)
+                    processInput({ x: touch.pageX * windowToLogicalScale, y: touch.pageY * windowToLogicalScale, time: time })
+                }
+            }
+
+            e.preventDefault()
+        }
+
+        function touchEnd(e) {
+            eventTouches = []
+            for (let i = 0; i < e.touches.length; i++) {
+                const touch = e.touches[i]
+                eventTouches.push(touch.identifier)
+            }
+            e.preventDefault()
+        }
+
+        function touchCancel(e) {
+            eventTouches = []
+            for (let i = 0; i < e.touches.length; i++) {
+                const touch = e.touches[i]
+                eventTouches.push(touch.identifier)
+            }
+            e.preventDefault()
+        }
+
+        function drawParticle(ctx, particle, time) {
+            if (time > particle.startTime + particle.duration) {
+                return
+            }
+
+            const delta = time - particle.startTime
+            const progress = Math.pow(delta / particle.duration, particle.speedEasing)
+            const x = particle.x + progress * particle.targetX
+            const y = particle.y + progress * particle.targetY
+            const alpha = 1.0 - Math.pow(delta / particle.duration, particle.fadeEasing)
+
+            ctx.save()
+            ctx.globalCompositeOperation = "screen"
+            ctx.translate(x, y)
+            ctx.rotate(progress * particle.rotationSpeed * Math.PI)
+            ctx.scale(particle.size, particle.size)
+
+            const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, 1.5)
+            gradient.addColorStop(0.0, "rgba(" + particle.color1 + ", " + alpha + ")")
+            gradient.addColorStop(1.0, "rgba(" + particle.color2 + ", " + alpha + ")")
+            ctx.fillStyle = gradient
+
+            ctx.fill(particleShape)
+
+            ctx.restore()
+        }
+
+        function drawHighlight(ctx, highlight, time) {
+            if (time > highlight.startTime + highlight.duration) {
+                return
+            }
+
+            const delta = time - highlight.startTime
+            const progress = Math.pow(delta / highlight.duration, highlightFadeEasing)
+            const alpha = highlight.alpha * (1.0 - progress)
+
+            ctx.save()
+            ctx.translate(highlight.x, highlight.y)
+
+            const r = highlight.radius
+            const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, r)
+            gradient.addColorStop(0.0, "rgba(" + highlight.color + ", " + alpha + ")")
+            gradient.addColorStop(0.3, "rgba(" + highlight.color + ", " + 0.8 * alpha + ")")
+            gradient.addColorStop(0.6, "rgba(" + highlight.color + ", " + 0.5 * alpha + ")")
+            gradient.addColorStop(1.0, "rgba(" + highlight.color + ", 0)")
+
+            ctx.fillStyle = gradient
+            ctx.fillRect(-r, -r, 2 * r, 2 * r)
+            ctx.restore()
+        }
+
+        function drawTargetWing(ctx, angle) {
+            ctx.save()
+            ctx.beginPath()
+            ctx.moveTo(2, 9)
+            ctx.rotate(-0.1 - 0.3 * angle)
+            ctx.quadraticCurveTo(22, 25, 0, 45)
+            ctx.closePath()
+
+            const gradient = ctx.createRadialGradient(0, 0, 10, 0, 0, 50)
+            gradient.addColorStop(0.0, "rgba(" + targetColors1[color2] + ", 1)")
+            gradient.addColorStop(1.0, "rgba(" + targetColors2[color2] + ", " + targetWingsOpacity + ")")
+            ctx.fillStyle = gradient
+
+            ctx.fill()
+            if (color1 == color2) {
+                ctx.strokeStyle = "black"
+                ctx.lineWidth = 0.2
+                ctx.stroke()
+            }
+            ctx.restore()
+        }
+
+        function drawTarget(ctx, position, time) {
+            ctx.save()
+            ctx.translate(position.x, position.y)
+            ctx.rotate(position.angle)
+            ctx.scale(targetScale, targetScale)
+
+            // highlight
+            const alpha = targetHighlightAlpha1 + (targetHighlightAlpha2 - targetHighlightAlpha1) * 0.5 * (Math.sin(time * targetHighlightSpeed) + 1.0)
+            const gradient1 = ctx.createRadialGradient(0, -0.5 * targetHighlightSize, 0, 0, 0, targetHighlightSize)
+            gradient1.addColorStop(0.0, "rgba(" + targetHighlightColors[color1] + ", " + alpha * 1.0 + ")")
+            gradient1.addColorStop(0.3, "rgba(" + targetHighlightColors[color1] + ", " + alpha * 0.8 + ")")
+            gradient1.addColorStop(0.6, "rgba(" + targetHighlightColors[color1] + ", " + alpha * 0.5 + ")")
+            gradient1.addColorStop(1.0, "rgba(" + targetHighlightColors[color1] + ", 0)")
+
+            ctx.fillStyle = gradient1
+            ctx.fillRect(-targetHighlightSize, -targetHighlightSize, 2 * targetHighlightSize, 2 * targetHighlightSize)
+
+            // body
+            ctx.translate(0, -25)
+            ctx.beginPath()
+            ctx.ellipse(0, 25, 12, 15, 0, 0, 2 * Math.PI)
+            ctx.closePath()
+
+            const gradient2 = ctx.createRadialGradient(0, 10, 10, 0, 20, 25)
+            gradient2.addColorStop(0.0, "rgba(" + targetColors1[color1] + ", 1)")
+            gradient2.addColorStop(1.0, "rgba(" + targetColors2[color1] + ", 1)")
+
+            ctx.fillStyle = gradient2
+            ctx.fill()
+
+            // antenna
+            const antennaAngle = antennaAngle1 + (antennaAngle2 - antennaAngle1) * (1.0 - Math.pow(Math.abs(Math.sin(time * antennaSpeed)), antennaEasing))
+
+            ctx.save()
+            ctx.translate(0, 4)
+            ctx.beginPath()
+            ctx.rotate(-antennaAngle)
+            ctx.moveTo(2, 0)
+            ctx.arcTo(7, -5, 15, 0, 6)
+            ctx.rotate(2 * antennaAngle)
+            ctx.moveTo(-2, 0)
+            ctx.arcTo(-7, -5, -15, 0, 6)
+            const gradient3 = ctx.createRadialGradient(2, 5, 0, 2, 5, 20)
+            gradient3.addColorStop(0.0, "rgba(" + targetColors1[color2] + ", 1)")
+            gradient3.addColorStop(1.0, "rgba(" + targetColors2[color2] + ", 1)")
+
+            ctx.lineWidth = 2
+            ctx.lineCap = "round"
+            ctx.strokeStyle = gradient3
+            ctx.stroke()
+            ctx.restore()
+
+            // head
+            ctx.beginPath()
+            ctx.ellipse(0, 10, 7, 7, 0, 0, 2 * Math.PI)
+            ctx.closePath()
+
+            ctx.fillStyle = gradient2
+            ctx.fill()
+
+            const angle = 1.0 - Math.pow(Math.abs(Math.sin(time * wingsSpeed)), wingsEasing)
+
+            ctx.save()
+            drawTargetWing(ctx, angle)
+            ctx.scale(-1, 1)
+            drawTargetWing(ctx, angle)
+            ctx.restore()
+
+            ctx.restore()
+        }
+
+        function getCurvePosition(curve, t) {
+            const t3 = t * t * t
+            const t2 = t * t
+            const a = -t3 + 3 * t2 - 3 * t + 1
+            const b = 3 * t3 - 6 * t2 + 3 * t
+            const c = -3 * t3 + 3 * t2
+            const d = t3
+
+            return {
+                x: a * curve[0].x + b * curve[1].x + c * curve[2].x + d * curve[3].x,
+                y: a * curve[0].y + b * curve[1].y + c * curve[2].y + d * curve[3].y
+            }
+        }
+
+        function getAngle(curve, t) {
+            const t2 = t * t
+            const a = -3 * t2 + 6 * t - 3
+            const b = 9 * t2 - 12 * t + 3
+            const c = -9 * t2 + 6 * t
+            const d = 3 * t2
+
+            const x = a * curve[0].x + b * curve[1].x + c * curve[2].x + d * curve[3].x
+            const y = a * curve[0].y + b * curve[1].y + c * curve[2].y + d * curve[3].y
+
+            return Math.atan2(y, x) + 0.5 * Math.PI
+        }
+
+        function getRandomPosition(position) {
+            const x1 = Math.min(canvasLogicalWidth - targetMoveMargin, position.x + targetMoveDistance)
+            const x2 = Math.max(targetMoveMargin, position.x - targetMoveDistance)
+            const y1 = Math.min(canvasLogicalHeight, position.y + targetMoveDistance)
+            const y2 = Math.max(targetMoveMargin - targetMoveMargin, position.y - targetMoveDistance)
+
+            return {
+                x: random(x1, x2, 0),
+                y: random(y1, y2, 0)
+            }
+        }
+
+        function getRandomPosition2(position1, position2) {
+            return {
+                x: 2.0 * position2.x - position1.x,
+                y: 2.0 * position2.y - position1.y,
+            }
+        }
+
+        function clearExpiredEntities(time) {
+            // clear completed animations
+
+            while (particles.length > 0 && particles[0].startTime < time - particles[0].duration) {
+                particles.shift()
+            }
+
+            while (highlights.length > 0 && highlights[0].startTime < time - highlights[0].duration) {
+                highlights.shift()
+            }
+        }
+
+        function addBlastParticles(time, position, velocity, blastScale) {
+            for (let j = 0; j < blastParticles; j++) {
+                const r = Math.random() * blastRadius * targetScale * blastScale
+                const direction = Math.random() * Math.PI * 2.0
+                const color = Math.random() < 0.7 ? color1 : color2
+
+                particles.push({
+                    startTime: time,
+                    duration: random(blastDuration1, blastDuration2, blastDurationBias),
+                    x: position.x,
+                    y: position.y,
+                    targetX: r * Math.cos(direction) + velocity.x,
+                    targetY: r * Math.sin(direction) + velocity.y,
+                    rotationSpeed: 1.0 + Math.random(),
+                    size: random(particleSize1, particleSize2, particleSizeBias) * targetScale,
+                    color1: blastColors1[color],
+                    color2: blastColors2[color],
+                    speedEasing: blastSpeedEasing,
+                    fadeEasing: blastFadeEasing
+                })
+            }
+        }
+
+
+        function addSparkParticles(time, position, velocity) {
+            for (let j = 0; j < sparkParticles; j++) {
+                const r = Math.random() * sparkRadius * targetScale
+                const direction = Math.random() * Math.PI * 2.0
+                const color = Math.random() < 0.7 ? color1 : color2
+
+                particles.push({
+                    startTime: time,
+                    duration: random(blastDuration1, blastDuration2, blastDurationBias),
+                    x: position.x,
+                    y: position.y,
+                    targetX: r * Math.cos(direction) + velocity.x,
+                    targetY: r * Math.sin(direction) + velocity.y,
+                    rotationSpeed: 1.0 + Math.random(),
+                    size: random(sparkParticleSize1, sparkParticleSize2, sparkParticleSizeBias) * targetScale,
+                    color1: blastColors1[color],
+                    color2: blastColors2[color],
+                    speedEasing: blastSpeedEasing,
+                    fadeEasing: blastFadeEasing
+                })
+            }
+        }
+
+        function addTouchHighlight(time, position) {
+            highlights.push({
+                startTime: time,
+                duration: highlightDuration,
+                x: position.x,
+                y: position.y,
+                radius: highlightTouchRadius,
+                color: highlightTouchColor,
+                alpha: highlightTouchAlpha
+            })
+        }
+
+        function addBlastHighlight(time, position, scale) {
+            highlights.push({
+                startTime: time,
+                duration: highlightDuration,
+                x: position.x,
+                y: position.y,
+                radius: highlightBlastRadius * scale,
+                color: highlightBlastColors[color2],
+                alpha: highlightBlastAlpha
+            })
+        }
+
+        function setCookie(key, value) {
+            key = encodeURIComponent(key)
+            value = encodeURIComponent(value)
+            document.cookie = key + "=" + value + "; SameSite=Strict; max-age=1000000000"
+        }
+
+        function getCookie(key) {
+            key = encodeURIComponent(key) + "="
+            const value = document.cookie.split("; ").find((row) => row.startsWith(key))?.split("=")[1]
+            return value != undefined ? decodeURIComponent(value) : undefined
+        }
+
+        function tryParseInt(value, defaultValue) {
+            const result = parseInt(value)
+            return isNaN(result) ? defaultValue : result
+        }
+
+        function tryParseFloat(value, defaultValue) {
+            const result = parseFloat(value)
+            return isNaN(result) ? defaultValue : result
+        }
+
+        function addRoundStatistics(roundDuration, roundTouches) {
+            if (totalRoundsCount == 0) {
+
+                const totalGamesValue = getCookie(playerName + "_total") || ""
+                if (totalGamesValue != "") {
+                    const totalGamesValues = totalGamesValue.split(",")
+                    totalGamesCount = parseInt(totalGamesValues[0])
+                    totalGamesRounds = parseInt(totalGamesValues[1])
+                    totalGamesTouches = parseInt(totalGamesValues[2])
+                    totalGamesDuration = parseInt(totalGamesValues[3])
+                }
+
+                totalGamesCount++
+
+                for (let i = maxGamesStatistics; i > 0; i--) {
+                    setCookie(playerName + "_game" + i, getCookie(playerName + "_game" + (i - 1)) || "")
+                }
+            }
+
+            roundDuration = Math.floor(roundDuration)
+
+            totalRoundsCount++
+            totalRoundsTouches += roundTouches
+            totalRoundsDuration += roundDuration
+
+            totalGamesRounds++
+            totalGamesTouches += roundTouches
+            totalGamesDuration += roundDuration
+
+            const gameStatistics = "" + totalRoundsCount + "," + totalRoundsTouches + "," + totalRoundsDuration
+            setCookie(playerName + "_game0", gameStatistics)
+
+            const totalGamesStatistics = "" + totalGamesCount + "," + totalGamesRounds + "," + totalGamesTouches + "," + totalGamesDuration
+            setCookie(playerName + "_total", totalGamesStatistics)
+        }
+
+        function processInput(touch) {
+            const time = touch.time
+
+            const menuButtonBounds = (menuScale / gameScale) * menuButtonSize
+            let isMenuClicked = false
+            wakeLockReleaseTime = time + screenTimeout
+
+            roundTouches++
+
+            if (time - lastTouch.time > idleTimeThreshold) {
+                roundIdleTime += time - Math.max(lastTouch.time, roundStartTime)
+            }
+
+            if (roundStarted) {
+                const dx = position.x - touch.x
+                const dy = position.y - touch.y
+                const hitRadius = Math.sqrt(dx * dx + dy * dy) / (targetHitRadius * targetScale)
+
+                const lastPosition = getCurvePosition(targetCurve, targetProgress - 100.0 * targetSpeed)
+                const velocity = {
+                    x: blastCurveSpeed * (position.x - lastPosition.x),
+                    y: blastCurveSpeed * (position.y - lastPosition.y)
+                }
+
+                if (hitRadius < 1.0) {
+                    const blastScale = 0.5 + 0.5 * (1.0 - hitRadius)
+
+                    // blast
+                    addBlastHighlight(time, position, blastScale)
+                    addBlastParticles(time, position, velocity, blastScale)
+
+                    // vibration
+                    if (enableVibration) {
+                        const vibrationScale = 0.2 + 0.8 * (1.0 - hitRadius)
+                        vibrate(getVibrationPattern(blastVibrationDuration * vibrationScale, blastVibrationFrequency, vibrationScale, 1))
+                    }
+
+                    // add statistics
+                    addRoundStatistics(time - roundStartTime - roundIdleTime, roundTouches)
+
+                    // new round
+                    roundStartTime = time + blastDuration2 + random(roundStartDelay1, roundStartDelay2, roundStartDelayBias)
+                    roundStarted = false
+                }
+                else {
+                    addTouchHighlight(time, touch)
+
+                    // almost hit
+                    if (hitRadius < 1.5) {
+                        addSparkParticles(time, position, velocity)
+
+                        // vibration
+                        if (enableVibration) {
+                            const vibrationScale = (1.5 - hitRadius) / 0.5
+                            vibrate(getVibrationPattern(missVibrationDuration * vibrationScale, missVibrationFrequency, vibrationScale, 1))
+                        }
+                    }
+                }
+            }
+            else {
+                addTouchHighlight(time, touch)
+            }
+
+            if (enableMenu && touch.x > canvasLogicalWidth - menuButtonBounds && touch.y < menuButtonBounds) {
+                isMenuClicked = true
+            }
+
+            if (isMenuClicked) {
+                menuClicked(time)
+            }
+
+            if (!isFullscreen && time - lastTouch.time < doubleClickTime &&
+                Math.abs(touch.x - lastTouch.x) + Math.abs(touch.y - lastTouch.y) < doubleClickRadius)
+            {
+                document.documentElement.requestFullscreen()
+            }
+
+            lastTouch = touch
+        }
+
+        function setTargetCurve(time, delta) {
+            targetCurve = [Math.random() < 0.5 ?
+                { x: canvasLogicalWidth * Math.floor(Math.random() + 0.5), y: canvasLogicalHeight * Math.random() } :
+                { x: canvasLogicalWidth * Math.random(), y: canvasLogicalHeight * Math.floor(Math.random() + 0.5) }]
+
+            targetCurve.push(getRandomPosition(targetCurve[0]))
+            targetCurve.push(getRandomPosition(targetCurve[1]))
+            targetCurve.push(getRandomPosition(targetCurve[2]))
+            targetCurve.push(getRandomPosition2(targetCurve[2], targetCurve[3]))
+
+            targetProgress = 0.0
+        }
+
+        function setTargetCurveProgress(time, delta) {
+            targetProgress += delta * targetSpeed
+
+            if (targetCurve.length == 0 || targetProgress >= 1.0) {
+
+                if (targetCurve.length == 0) {
+                    targetCurve = [Math.random() < 0.5 ?
+                        { x: canvasLogicalWidth * Math.floor(Math.random() + 0.5), y: canvasLogicalHeight * Math.random() } :
+                        { x: canvasLogicalWidth * Math.random(), y: canvasLogicalHeight * Math.floor(Math.random() + 0.5) }]
+                    targetCurve.push(getRandomPosition(targetCurve[0]))
+                }
+                else {
+                    targetCurve.shift()
+                    targetCurve.shift()
+                    targetCurve.shift()
+                }
+
+                targetCurve.push(getRandomPosition(targetCurve[1]))
+                targetCurve.push(getRandomPosition(targetCurve[2]))
+                targetCurve.push(getRandomPosition2(targetCurve[2], targetCurve[3]))
+
+                targetProgress = 0.0
+            }
+        }
+
+        function addTrailParticle(time, position) {
+            const trailAngle = position.angle + 0.5 * Math.PI
+            particles.push({
+                startTime: time,
+                duration: random(trailDuration1, trailDuration2, trailDurationBias),
+                x: position.x + trailOffset1 * Math.cos(trailAngle) + trailScatter1 * random(-1, 1, 0),
+                y: position.y + trailOffset1 * Math.sin(trailAngle) + trailScatter1 * random(-1, 1, 0),
+                targetX: (trailOffset2 * Math.cos(trailAngle) + trailScatter2 * random(-1, 1, 0)) * targetScale,
+                targetY: (trailOffset2 * Math.sin(trailAngle) + trailScatter2 * random(-1, 1, 0)) * targetScale,
+                rotationSpeed: random(1, 2, 0),
+                size: random(trailParticleSize1, trailParticleSize2, trailParticleSizeBias) * targetScale,
+                color1: trailColor1,
+                color2: trailColor2,
+                speedEasing: trailSpeedEasing,
+                fadeEasing: trailFadeEasing
+            })
+        }
+
+        function drawScene(ctx, time, delta, position) {
+            ctx.save()
+
+            ctx.globalCompositeOperation = "src-over";
+
+            // clear screen
+            ctx.fillStyle = "rgba(0, 0, 0, 1.0)"
+            ctx.fillRect(0, 0, canvasLogicalWidth, canvasLogicalHeight)
+
+            if (showFps || showTargetPath || debugMessage != null) {
+                ctx.fillStyle = "rgba(255, 255, 0, 0.8)"
+                ctx.font = "24px monospace"
+
+                let y = 40
+                if (showFps) {
+                    ctx.fillText("FPS: " + (Math.round(100000 / delta) / 100), 20, y)
+                }
+
+                if (debugMessage != null) {
+                    for (let i = 0; i < debugMessage.length; i++) {
+                        y += 40
+                        ctx.fillText(debugMessage[i], 20, y)
+                    }
+                }
+
+                // target path
+                if (showTargetPath) {
+                    ctx.beginPath()
+                    ctx.moveTo(targetCurve[0].x, targetCurve[0].y)
+                    for (let i = 1; i < targetCurve.length; i++) {
+                        ctx.lineTo(targetCurve[i].x, targetCurve[i].y)
+                    }
+                    ctx.strokeStyle = "rgba(255, 255, 255, 1)"
+                    ctx.lineWidth = 2
+                    ctx.stroke()
+                    ctx.fillRect(targetCurve[0].x - 5, targetCurve[0].y - 5, 10, 10)
+                    ctx.fillRect(targetCurve[3].x - 5, targetCurve[3].y - 5, 10, 10)
+                }
+            }
+
+            if (roundStarted) {
+                drawTarget(ctx, position, time)
+            }
+
+            for (let i = 0; i < highlights.length; i++) {
+                drawHighlight(ctx, highlights[i], time)
+            }
+
+            for (let i = 0; i < particles.length; i++) {
+                drawParticle(ctx, particles[i], time)
+            }
+
+            ctx.restore()
+        }
+
+        function startRound(time) {
+            color1 = Math.floor(Math.random() * 3)
+            color2 = Math.floor(Math.random() * 3)
+            if (color1 == color2) { // make single color more rare
+                color2 = Math.floor(Math.random() * 3)
+            }
+
+            targetScale = random(targetScale1, targetScale2, targetScaleBias)
+            targetSpeed = random(targetSpeed1, targetSpeed2, targetSpeedBias) * targetSpeedFactor
+
+            setTargetCurve(time)
+            roundStarted = true
+            roundTouches = 0
+            roundIdleTime = 0
+        }
+
+        function animationFrame() {
+            const time = Date.now().valueOf()
+            const delta = time - previousTime
+            previousTime = time
+
+            clearExpiredEntities(time)
+
+            if (wakeLock == null && wakeLockAvailable && time < wakeLockReleaseTime) {
+                aquireWakeLock()
+            }
+
+            if (wakeLock != null && time > wakeLockReleaseTime) {
+                releaseWakeLock()
+            }
+
+            if (isMenuVisible && menuHideTime < time) {
+                hideMenu()
+            }
+
+            if (isFullscreenMessageVisible && (isFullscreen || messageHideTime < time)) {
+                messageContainer.parentElement.style.visibility = "collapse"
+                isFullscreenMessageVisible = false
+            }
+
+            if (roundStarted) {
+                setTargetCurveProgress(time, delta)
+            }
+            else if (roundStartTime < time) {
+                startRound(time)
+            }
+
+            position = null
+
+            if (roundStarted) {
+                position = getCurvePosition(targetCurve, targetProgress)
+                position.angle = getAngle(targetCurve, targetProgress)
+            }
+
+            if (roundStarted && Math.random() < delta * trailProbability) {
+                addTrailParticle(time, position)
+            }
+
+            const ctx = canvas.getContext("2d", { alpha: false })
+            ctx.save()
+            ctx.scale(contextRootScale, contextRootScale)
+            drawScene(ctx, time, delta, position)
+            ctx.restore()
+
+            window.requestAnimationFrame(animationFrame)
+        }
+
+        function showMenu(time) {
+            isMenuVisible = true
+            menuContainer.style.visibility = "visible"
+
+            menuHideTime = time + menuTimeout
+        }
+
+        function hideMenu() {
+            isMenuVisible = false
+            menuContainer.style.visibility = "collapse"
+        }
+
+        function menuClicked(time) {
+            if (isMenuVisible) {
+                hideMenu()
+            }
+            else {
+                showMenu(time)
+            }
+        }
+
+        function fullscreenClicked(e) {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen()
+            }
+            else {
+                document.exitFullscreen()
+            }
+
+            e.preventDefault()
+        }
+
+        function statisticsClicked(e) {
+            window.location.href = "statistics.html";
+            e.preventDefault()
+        }
+
+        function homeClicked(e) {
+            window.location.href = "index.html";
+            e.preventDefault()
+        }
+
+        function aquireWakeLock() {
+            wakeLockAvailable = false
+
+            if (navigator.wakeLock != undefined) {
+                try {
+                    navigator.wakeLock.request("screen").then(function (lock) {
+                        wakeLock = lock
+                        wakeLockAvailable = true
+
+                        wakeLock.addEventListener("release", function () {
+                            wakeLock = null
+                        })
+                    })
+                }
+                catch (err) {
+                }
+            }
+        }
+
+        function getVibrationPattern(duration, frequency, strength, decay) {
+            const count = Math.ceil(duration / frequency)
+            const pattern = []
+            for (let i = 0; i < count; i++) {
+                const f = Math.pow(1.0 - i / count, Math.exp(decay))
+                pattern.push(frequency * strength * f) // pulse
+                pattern.push(frequency * (1.0 - strength * f)) // delay
+            }
+            return pattern
+        }
+
+        function vibrate(pattern) {
+            if (navigator.vibrate != undefined) {
+                navigator.vibrate(pattern)
+            }
+        }
+
+        function releaseWakeLock() {
+            if (wakeLock != null) {
+                wakeLock.release()
+                wakeLock = null
+            }
+        }
+
+        document.addEventListener("visibilitychange", function () {
+            if (document.visibilityState == "visible") {
+                const time = Date.now().valueOf()
+                wakeLockReleaseTime = time + screenTimeout
+            }
+        })
+
+        document.addEventListener("fullscreenchange", function (e) {
+            isFullscreen = document.fullscreen
+            const menuOpacity = isFullscreen ? menuOpacity2 : menuOpacity1
+            menuButtonContainer.style.visibility = !isFullscreen || enableFullscreenMenu ? "visible" : "collapse"
+            menuButtonContainer.style.opacity = menuOpacity
+            menuContainer.style.opacity = menuOpacity
+            hideMenu()
+            messageHideTime = 0
+        })
+
+        document.addEventListener("keydown", function (e) {
+            if (e.key.toLowerCase() == "f") {
+                fullscreenClicked(e)
+            }
+        })
+
+        window.onresize = setCanvasSize
+
+        window.onload = function() {
+            let params = new URLSearchParams(document.location.search)
+            playerName = params.get("name") || getCookie("name") || "Player1"
+            targetSpeedFactor = tryParseFloat(params.get("speed"), tryParseFloat(getCookie("speed"), 1.0))
+            gameScale = tryParseFloat(params.get("scale"), tryParseFloat(getCookie("scale"), 1.0))
+            resolutionScale = tryParseInt(params.get("resolution"), tryParseInt(getCookie("resolution"), 2))
+            screenTimeout = tryParseInt(params.get("timeout"), tryParseInt(getCookie("timeout"), 10)) * 60000
+            enableVibration = (params.get("vibration") || getCookie("vibration")) != "false"
+            enableFullscreenMenu = (params.get("hideMenu") || getCookie("hideMenu")) != "true"
+
+            canvas = document.getElementById("canvas")
+            canvas.addEventListener("mousedown", mouseDown)
+            canvas.addEventListener("touchstart", touchStart)
+            canvas.addEventListener("touchend", touchEnd)
+            canvas.addEventListener("touchcancel", touchCancel)
+
+            let isMenuOpen = false
+
+            menuContainer = document.getElementById("menuContainer")
+            menuContainer.style.opacity = menuOpacity1
+
+            menuButtonContainer = document.getElementById("menuButtonContainer")
+            menuButtonContainer.style.opacity = menuOpacity1
+
+            const fullscreenButton = document.getElementById("fullscreenButton")
+            fullscreenButton.addEventListener("mousedown", fullscreenClicked)
+            fullscreenButton.addEventListener("touchstart", fullscreenClicked)
+
+            messageContainer = document.getElementById("messageContainer")
+            messageContainer.innerText = "Double tap to enter full screen"
+
+            const homeButton = document.getElementById("homeButton")
+            homeButton.addEventListener("mousedown", homeClicked)
+            homeButton.addEventListener("touchstart", homeClicked)
+
+            const statisticsButton = document.getElementById("statisticsButton")
+            statisticsButton.addEventListener("mousedown", statisticsClicked)
+            statisticsButton.addEventListener("touchstart", statisticsClicked)
+
+            // disable screen timeout
+            aquireWakeLock()
+
+            // create star shape
+            particleShape.moveTo(1, 0)
+            for (let i = 0; i < 10; i++) {
+                const r = i % 2 == 0 ? 1 : 0.6;
+                particleShape.lineTo(r * Math.cos(Math.PI * i / 5), r * Math.sin(Math.PI * i / 5))
+            }
+            particleShape.closePath()
+
+            const time = Date.now().valueOf()
+            previousTime = time
+            roundStartTime = time
+            lastTouch.time = time
+            wakeLockReleaseTime = time + screenTimeout
+            messageHideTime = time + fullscreenMessageTimeout
+
+            setCanvasSize()
+
+            window.requestAnimationFrame(animationFrame)
+        }
+    </script>
+</head>
+<body style="background: black; overflow: hidden; margin: 0; padding: 0; font-family: sans-serif;">
+    <canvas id="canvas" width="0" height="0" style="position: absolute; width: 100%; height: 100%;"></canvas>
+
+    <div id="menuButtonContainer" style="color: white; position: absolute; right: 0; top: 0; transform-origin: top right; user-select: none; pointer-events: none;">
+       <svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="16px" height="16px" style="margin: 12px;">
+           <path d="M 1,3 15,3 M 1,8 15,8 M 1,13 15,13" style="fill:none;stroke:white;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"></path>
+       </svg>
+    </div>
+    <div id="menuContainer" style="color: white; position: absolute; left: 0; top: 0; transform-origin: top left; user-select: none; visibility: collapse">
+        <div style="padding: 5px">
+            <div id="fullscreenButton" style="padding: 5px; cursor: pointer;">Full screen</div>
+            <div id="statisticsButton" style="padding: 5px; cursor: pointer;">Statistics</div>
+            <div id="homeButton" style="padding: 5px; cursor: pointer;">
+               <svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="12px" height="12px">
+               <path d="M 1,6 6,11 M 1,6 6,1 M 1,6 11,6" style="fill:none;stroke:white;stroke-width:1;stroke-linecap:round;stroke-linejoin:round;"></path>
+               </svg>
+               Home
+           </div>
+        </div>
+    </div>
+    <div style="text-align: center; position: absolute; margin-top: 20px; left: 50%; width: 0; overflow: visible;">
+        <div id="messageContainer" style="background: #202020; color: #fff; opacity: 0.6; font-size: 1.1em; user-select: none; pointer-events: none; text-align: center; padding: 12px; border-radius: 24px; position: absolute; width: 300px; left: -150px;"></div>
+    </div>
+</body>
+</html>

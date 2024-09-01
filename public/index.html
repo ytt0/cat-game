@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+    <meta property="og:title" content="Cat Game">
+    <meta property="og:description" content="A game for cats.">
+    <meta property="og:site_name" content="Cat Game">
+    <meta property="og:url" content="https://ytt0.github.io/cat-game">
+    <meta property="og:type" content="website">
+    <meta property="og:locale" content="en-us">
+    <meta property="og:image" content="images/logo-512.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
+    <meta name="keywords" content="touch, game">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <meta name="msapplication-TileColor" content="black">
+    <meta name="theme-color" content="black">
+    <meta name="color-scheme" content="dark">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <link rel="apple-touch-icon" sizes="180x180" href="images/favicon-180.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="images/favicon-32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="images/favicon-16.png">
+    <link rel="manifest" crossorigin="anonymous" href="app.webmanifest">
+    <link rel="mask-icon" href="images/logo.svg">
+    <title>Cat Game</title>
+    <script>
+        let nameInput = null
+        let speedInput = null
+        let scaleInput = null
+        let resolutionInput = null
+        let timeoutInput = null
+        let vibrationInput = null
+        let hideMenuInput = null
+
+        let name = "Player1"
+        let speed = "1"
+        let scale = "1"
+        let resolution = "2"
+        let timeout = "10"
+        let vibration = true
+        let hideMenu = false
+
+        function setCookie(key, value) {
+            key = encodeURIComponent(key)
+            value = encodeURIComponent(value)
+            document.cookie = key + "=" + value + "; SameSite=Strict; max-age=1000000000"
+        }
+
+        function getCookie(key) {
+            key = encodeURIComponent(key) + "="
+            const value = document.cookie.split("; ").find((row) => row.startsWith(key))?.split("=")[1]
+            return value != undefined ? decodeURIComponent(value) : undefined
+        }
+
+        function getAllCookies() {
+            const result = []
+            const keyValues = document.cookie.split("; ")
+
+            for (let i = 0; i < keyValues.length; i++) {
+                const key = decodeURIComponent(keyValues[i].split("=")[0])
+                const value = decodeURIComponent(keyValues[i].split("=")[1] || "")
+
+                result.push({ key: key, value: value })
+            }
+
+            return result
+        }
+
+        function readSettings() {
+            name = getCookie("name") || "Player1"
+            speed = getCookie("speed") || "1"
+            scale = getCookie("scale") || "1"
+            resolution = getCookie("resolution") || "2"
+            timeout = getCookie("timeout") || "10"
+            vibration = getCookie("vibration") != "false"
+            hideMenu = getCookie("hideMenu") == "true"
+
+            nameInput.value = name
+            speedInput.value = speed
+            scaleInput.value = scale
+            resolutionInput.value = resolution
+            timeoutInput.value = timeout
+            vibrationInput.checked = vibration
+            hideMenuInput.checked = hideMenu
+        }
+
+        function writeSettings() {
+            name = nameInput.value
+            speed = tryParseFloat(speedInput.value, 1)
+            scale = tryParseFloat(scaleInput.value, 1)
+            resolution = tryParseInt(resolutionInput.value, 2)
+            timeout = tryParseInt(timeoutInput.value, 10)
+            vibration = vibrationInput.checked
+            hideMenu = hideMenuInput.checked
+
+            setCookie("name", name)
+            setCookie("speed", speed)
+            setCookie("scale", scale)
+            setCookie("resolution", resolution)
+            setCookie("timeout", timeout)
+            setCookie("vibration", vibration)
+            setCookie("hideMenu", hideMenu)
+        }
+
+        function getNames() {
+            const cookies = getAllCookies()
+            const names = []
+            for (let i = 0; i < cookies.length; i++) {
+                const key = cookies[i].key
+                if (key.endsWith("_total")) {
+                    names.push(key.substring(0, key.length - 6))
+                }
+            }
+
+            names.sort()
+            return names
+        }
+
+        function tryParseInt(value, defaultValue) {
+            const result = parseInt(value)
+            return isNaN(result) ? defaultValue : result
+        }
+
+        function tryParseFloat(value, defaultValue) {
+            const result = parseFloat(value)
+            return isNaN(result) ? defaultValue : result
+        }
+
+        function startClicked(e) {
+            writeSettings()
+
+            window.location.href = "game.html?" +
+                "&name=" + name +
+                "&speed=" + speed +
+                "&scale=" + scale +
+                "&resolution=" + resolution +
+                "&timeout=" + timeout +
+                "&vibration=" + vibration +
+                "&hideMenu=" + hideMenu
+
+            e.preventDefault()
+        }
+
+        function statisticsClicked(e) {
+
+            writeSettings()
+
+            window.location.href = "statistics.html?&name=" + name
+
+            e.preventDefault()
+        }
+
+        function nextNameClicked(e) {
+            const names = getNames()
+            const name = nameInput.value
+
+            if (names.length > 0) {
+                const i = (names.findIndex((n) => n == name) + 1) % names.length
+                nameInput.value = names[i]
+            }
+
+            e.preventDefault()
+        }
+
+        function previousNameClicked(e) {
+            const names = getNames()
+            const name = nameInput.value
+
+            if (names.length > 0) {
+                const j = names.findIndex((n) => n == name)
+                const i = (j + 2 * names.length - 1) % names.length
+                nameInput.value = names[i]
+            }
+
+            e.preventDefault()
+        }
+
+        window.onload = function() {
+            nameInput = document.getElementById("nameInput")
+            speedInput = document.getElementById("speedInput")
+            scaleInput = document.getElementById("scaleInput")
+            resolutionInput = document.getElementById("resolutionInput")
+            timeoutInput = document.getElementById("timeoutInput")
+            vibrationInput = document.getElementById("vibrationInput")
+            hideMenuInput = document.getElementById("hideMenuInput")
+
+            const startButton = document.getElementById("startButton")
+            startButton.addEventListener("click", startClicked)
+            startButton.addEventListener("touchend", startClicked)
+
+            const previousNameButton = document.getElementById("previousNameButton")
+            previousNameButton.addEventListener("click", previousNameClicked)
+            previousNameButton.addEventListener("touchend", previousNameClicked)
+
+            const nextNameButton = document.getElementById("nextNameButton")
+            nextNameButton.addEventListener("click", nextNameClicked)
+            nextNameButton.addEventListener("touchend", nextNameClicked)
+
+            const statisticsButton = document.getElementById("statisticsButton")
+            statisticsButton.addEventListener("click", statisticsClicked)
+            statisticsButton.addEventListener("touchend", statisticsClicked)
+
+            readSettings()
+
+            document.body.style.visibility = "visible"
+        }
+    </script>
+    <style>
+        .textinput {
+            background: black;
+            border: 1px solid #888;
+            color: white;
+            font-size: 1em;
+            text-align: center;
+            border-color: #60c;
+            border-radius: 30px;
+            padding: 8px;
+            width: 200px;
+        }
+
+        .textinput::selection {
+            color: white;
+            background-color: #60c;
+        }
+
+        .textinput:focus{
+            outline: none;
+            border-color: #fff;
+        }
+
+        #startButton {
+            background: linear-gradient(200deg, #f0c 0%, #00c 100%);
+            box-shadow: 0 0 10px #04f;
+            width: 200px;
+            border-radius: 10px;
+            padding: 20px;
+            vertical-align: middle;
+            user-select: none;
+            cursor: pointer;
+        }
+
+        #startButton:hover {
+            background: linear-gradient(200deg, #f0f 0%, #00f 100%);
+            filter: drop-shadow(0 0 15px #08f);
+        }
+
+        .text-button {
+            margin: auto;
+            cursor: pointer;
+            width: 30px;
+            height: 30px;
+            background: transparent;
+            user-select: none;
+        }
+
+        .previous-button {
+            z-index: 1;
+            margin-right: -30px;
+        }
+
+        .next-button {
+            margin-left: -30px;
+        }
+
+        .comment {
+            font-style: italic;
+            opacity: 0.5;
+            font-size: 0.9em;
+        }
+
+        a {
+            color: #888;
+            text-decoration: none;
+        }
+
+    </style>
+</head>
+<body style="background: black; color: white; font-family: sans-serif; text-align: center; -webkit-tap-highlight-color: transparent; visibility: hidden">
+    <br/>
+    <img src="images/logo.svg" style="width: 160px; height: 160px; filter: drop-shadow(0 0 10px #04f)"></img>
+    <h3>Name</h3>
+
+    <div style="display: flex;">
+        <div id="previousNameButton" class="text-button previous-button">
+           <svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="30px" height="30px">
+               <path d="M 19,8 L 19,22 L 11,15 Z" style="fill:#888;stroke:none;"></path>
+           </svg>
+        </div>
+        <input id="nameInput" class="textinput textButtons" type="text" value="" style="width: 160px; padding-left: 30px; padding-right: 30px;"></input>
+        <div id="nextNameButton" class="text-button next-button">
+           <svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="30px" height="30px">
+               <path d="M 11,8 L 11,22 L 19,15 Z" style="fill:#888;stroke:none;"></path>
+           </svg>
+        </div>
+    </div>
+    <br/>
+    <div style="display: flex; justify-content: center;">
+        <h1 id="startButton">
+            Start
+        </h1>
+    </div>
+    <h2 id="statisticsButton" style="color: #a0c; cursor: pointer; margin-left: auto; margin-right: auto; width: 200px;">Statistics</h2>
+    <h3>Settings</h3>
+    Speed
+    <br/>
+    <input id="speedInput" class="textinput" inputmode="decimal" value="" style="margin-top: 15px; margin-bottom: 15px"></input>
+    <br/>
+    Scale
+    <br/>
+    <input id="scaleInput" class="textinput" inputmode="decimal" value="" style="margin-top: 15px; margin-bottom: 15px"></input>
+    <br/>
+    Render scale
+    <br/>
+    <input id="resolutionInput" class="textinput" inputmode="numeric" value="" style="margin-top: 15px; margin-bottom: 10px"></input>
+    <br/>
+    <span class="comment">(1: sharp and slow)<br/>(2+: blurry and fast)</span>
+    <br/>
+    <br/>
+    Postpone screen timeout (minutes)
+    <br/>
+    <input id="timeoutInput" class="textinput" inputmode="numeric" value="" style="margin-top: 15px; margin-bottom: 15px"></input>
+    <br/>
+    <input id="vibrationInput" type="checkbox" style="margin-top: 15px; margin-bottom: 15px"/>
+    <label for="vibrationInput">Enable vibration</label>
+    <br/>
+    <input id="hideMenuInput" type="checkbox" style="margin-top: 15px; margin-bottom: 60px"/>
+    <label for="hideMenuInput">Hide menu in fullscreen</label>
+    <br/>
+    <a href="https://github.com/ytt0/cat-game">GitHub</a>
+</body>
+</html>

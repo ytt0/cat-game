@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <meta name="msapplication-TileColor" content="black">
+    <meta name="theme-color" content="black">
+    <link rel="apple-touch-icon" sizes="180x180" href="images/favicon-180.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="images/favicon-32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="images/favicon-16.png">
+    <link rel="mask-icon" href="images/logo.svg">
+    <title>Cat Game - Statistics</title>
+    <script>
+        const maxGamesStatistics = 10
+
+        let playerName = "Player1"
+
+        let tablesContainer = null
+        let clearButton = null
+        let restoreButton = null
+        const removedCookies = {}
+
+        function setCookie(key, value) {
+            key = encodeURIComponent(key)
+            value = encodeURIComponent(value)
+            document.cookie = key + "=" + value + "; SameSite=Strict; max-age=1000000000"
+        }
+
+        function getCookie(key) {
+            key = encodeURIComponent(key) + "="
+            const value = document.cookie.split("; ").find((row) => row.startsWith(key))?.split("=")[1]
+            return value != undefined ? decodeURIComponent(value) : undefined
+        }
+
+        function getAllCookies() {
+            const result = []
+            const keyValues = document.cookie.split("; ")
+
+            for (let i = 0; i < keyValues.length; i++) {
+                const key = decodeURIComponent(keyValues[i].split("=")[0])
+                const value = decodeURIComponent(keyValues[i].split("=")[1] || "")
+
+                result.push({ key: key, value: value })
+            }
+
+            return result
+        }
+
+        function removeCookie(key) {
+            key = encodeURIComponent(key)
+            document.cookie = key + '=; max-age=0'
+        }
+
+        function createTextElement(type, value) {
+            const element = document.createElement(type)
+            element.innerText = value
+            return element
+        }
+
+        function createTotalRowElement(gamesPlayed, totalTimePlayed, totalRounds, totalTouches, touchesPerRound) {
+            const tr = document.createElement("tr")
+            tr.appendChild(createTextElement("td", gamesPlayed))
+            tr.appendChild(createTextElement("td", totalTimePlayed))
+            tr.appendChild(createTextElement("td", totalRounds))
+            tr.appendChild(createTextElement("td", totalTouches))
+            tr.appendChild(createTextElement("td", touchesPerRound))
+            return tr;
+        }
+
+        function createTotalTableElement() {
+            const table = document.createElement("table")
+            const tr = document.createElement("tr")
+            tr.appendChild(createTextElement("th", "Games played"))
+            tr.appendChild(createTextElement("th", "Time played"))
+            tr.appendChild(createTextElement("th", "Total hits"))
+            tr.appendChild(createTextElement("th", "Total touches"))
+            tr.appendChild(createTextElement("th", "Touches per hit"))
+            table.appendChild(tr)
+            return table
+        }
+
+        function createGamesRowElement(gameNumber, gameTimePlayed, gameRounds, gameTouches, gameTouchesPerRound) {
+            const tr = document.createElement("tr")
+            tr.appendChild(createTextElement("td", gameNumber))
+            tr.appendChild(createTextElement("td", gameTimePlayed))
+            tr.appendChild(createTextElement("td", gameRounds))
+            tr.appendChild(createTextElement("td", gameTouches))
+            tr.appendChild(createTextElement("td", gameTouchesPerRound))
+            return tr;
+        }
+
+        function createGamesTableElement() {
+            const table = document.createElement("table")
+            const tr = document.createElement("tr")
+            tr.appendChild(createTextElement("th", "Game number"))
+            tr.appendChild(createTextElement("th", "Time played"))
+            tr.appendChild(createTextElement("th", "Total hits"))
+            tr.appendChild(createTextElement("th", "Total touches"))
+            tr.appendChild(createTextElement("th", "Touches per hit"))
+            table.appendChild(tr)
+            return table
+        }
+
+        function round1(value) {
+            return Math.round(value * 10) / 10
+        }
+
+        function padLeft(value, len) {
+            value = value.toString()
+            while (value.length < len) {
+                value = "0" + value
+            }
+
+            return value
+        }
+
+        function formatTime(milliseconds) {
+            const seconds = Math.round(milliseconds / 1000)
+            const minutes = Math.floor(seconds / 60)
+            const hours = Math.floor(minutes / 60)
+
+            if (hours >= 1) {
+                return hours + ":" + padLeft(Math.floor(60 * (minutes / 60 % 1)), 2) + ":" + padLeft(Math.floor(60 * (seconds / 60 % 1)), 2)
+            }
+
+            return Math.floor(60 * (minutes / 60 % 1)) + ":" + padLeft(Math.floor(60 * (seconds / 60 % 1)), 2)
+        }
+
+        function clearButtonClicked(e) {
+            let key = playerName + "_total"
+            removedCookies[key] = getCookie(key)
+            removeCookie(key)
+
+            for (let i = 0; i < maxGamesStatistics; i++) {
+                key = playerName + "_game" + i
+                removedCookies[key] = getCookie(key)
+                removeCookie(key)
+            }
+
+            createTables()
+            restoreButton.style.visibility = "visible"
+            restoreButton.style.height = ""
+            clearButton.style.visibility = "collapse"
+            clearButton.style.height = "0"
+
+            e.preventDefault()
+        }
+
+        function restoreButtonClicked(e) {
+            for (let key in removedCookies) {
+                setCookie(key, removedCookies[key])
+            }
+
+            createTables()
+            restoreButton.style.visibility = "collapse"
+            restoreButton.style.height = "0"
+            clearButton.style.visibility = "visible"
+            clearButton.style.height = ""
+
+            e.preventDefault()
+        }
+
+        function createTables() {
+
+            tablesContainer.innerHTML = ""
+
+            const totalValues = (getCookie(playerName + "_total") || "").split(",")
+
+            const gamesPlayed = parseInt(totalValues[0])
+            const totalRounds = parseInt(totalValues[1])
+            const totalTouches = parseInt(totalValues[2])
+            const totalTimePlayed = formatTime(parseInt(totalValues[3]))
+            const touchesPerRound = round1(totalTouches / totalRounds)
+
+            tablesContainer.appendChild(createTextElement("h1", playerName))
+
+            tablesContainer.appendChild(createTextElement("h4", "Total"))
+
+            const totalTable = createTotalTableElement()
+            if (totalValues.length == 4) {
+                totalTable.appendChild(createTotalRowElement(gamesPlayed, totalTimePlayed, totalRounds, totalTouches, touchesPerRound))
+            }
+            tablesContainer.appendChild(totalTable)
+
+            tablesContainer.appendChild(createTextElement("h4", "Last games"))
+
+            const gamesTable = createGamesTableElement()
+            for (let i = 0; i < maxGamesStatistics; i++) {
+                const gameValues = (getCookie(playerName + "_game" + i) || "").split(",")
+                if (gameValues.length < 3) {
+                    break;
+                }
+
+                const gameNumber = gamesPlayed - i
+                const gameRounds = parseInt(gameValues[0])
+                const gameTouches = parseInt(gameValues[1])
+                const gameTimePlayed = formatTime(parseInt(gameValues[2]))
+                const gameTouchesPerRound = round1(gameTouches / gameRounds)
+
+                gamesTable.appendChild(createGamesRowElement(gameNumber, gameTimePlayed, gameRounds, gameTouches, gameTouchesPerRound))
+            }
+
+            tablesContainer.appendChild(gamesTable)
+        }
+
+        window.onload = function() {
+            let params = new URLSearchParams(document.location.search)
+            playerName = params.get("name") || getCookie("name") || "Player1"
+
+            clearButton = document.getElementById("clearButton")
+            clearButton.addEventListener("click", clearButtonClicked)
+
+            restoreButton = document.getElementById("restoreButton")
+            restoreButton.addEventListener("click", restoreButtonClicked)
+
+            tablesContainer = document.getElementById("tablesContainer")
+
+            createTables()
+        }
+    </script>
+    <style>
+        table {
+            border: 1px solid #a0c;
+            margin-top: 8px;
+            margin-left: auto;
+            margin-right: auto;
+            border-radius: 8px;
+            border-spacing: 0;
+        }
+
+        th {
+            color: #a0c;
+            border-bottom: 1px solid #a0c;
+            padding: 4px;
+        }
+
+        td {
+            padding: 4px;
+        }
+
+        .button {
+            color: #d88;
+            background: #322;
+            margin-left: auto;
+            margin-right: auto;
+            width: 100px;
+            text-align: center;
+            user-select: none;
+            border-radius: 20px;
+        }
+
+        .clear {
+            color: #822;
+            background: #311;
+        }
+
+        .restore {
+            color: #4a4;
+            background: #131;
+        }
+    </style>
+</head>
+<body style="background: black; color: white; font-family: sans-serif; text-align: center">
+    <br/>
+    <img src="images/logo.svg" style="width: 160px; height: 160px; filter: drop-shadow(0 0 10px #04f)"></img>
+    <div id="tablesContainer">
+    </div>
+    <br/>
+    <br/>
+    <div style="margin: 20px; text-align: center;">
+        <div id="clearButton" class="button clear"><div style="padding: 6px">Clear</div></div>
+        <div id="restoreButton" class="button restore" style="visibility: collapse"><div style="padding: 6px">Restore</div></div>
+    <div>
+</body>
+</html>
